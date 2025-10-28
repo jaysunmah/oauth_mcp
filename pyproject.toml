@@ -1,0 +1,10 @@
+[project]
+name = "oauth-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.13.0.1",
+    "ruff>=0.14.2",
+]
