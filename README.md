@@ -61,6 +61,20 @@ curl -X POST http://localhost:8000/oauth/register \
 
 The server will respond with a `client_id` and `client_secret` that you can use immediately.
 
+### Test New OAuth Endpoints
+
+Test all the new OAuth 2.0/2.1 endpoints:
+
+```bash
+python test_new_endpoints.py
+```
+
+This tests:
+- OAuth Authorization Server Metadata discovery
+- Token revocation (RFC 7009)
+- Token introspection (RFC 7662)
+- UserInfo endpoint
+
 ## Demo Credentials
 
 **OAuth Client:**
@@ -79,6 +93,7 @@ oauth_mcp/
 ├── oauth_provider.py            # OAuth 2.1 server implementation
 ├── oauth_client_example.py      # Complete OAuth flow demo
 ├── test_dcr.py                  # Dynamic Client Registration test
+├── test_new_endpoints.py        # Tests for all new OAuth endpoints
 ├── client.py                    # Original simple client (no auth)
 ├── OAUTH_README.md             # Complete documentation
 └── README.md                   # This file
@@ -90,10 +105,14 @@ oauth_mcp/
 ✅ PKCE (Proof Key for Code Exchange)  
 ✅ Authorization code flow  
 ✅ Token refresh with rotation  
-✅ Token revocation  
+✅ Token revocation (RFC 7009)  
+✅ Token introspection (RFC 7662)  
 ✅ Scope validation  
 ✅ State parameter for CSRF protection  
-✅ **Dynamic Client Registration (DCR) - RFC 7591**  
+✅ Dynamic Client Registration (DCR) - RFC 7591  
+✅ OAuth Authorization Server Metadata (RFC 8414)  
+✅ OAuth Protected Resource Metadata (RFC 9470)  
+✅ UserInfo endpoint for user profile  
 
 ## Documentation
 

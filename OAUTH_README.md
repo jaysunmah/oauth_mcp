@@ -350,11 +350,94 @@ Access tokens expire after 1 hour. Use the refresh token to get a new access tok
 ### "Invalid client"
 Client ID and secret must match the registered client credentials.
 
+## New Endpoints (Recently Added)
+
+### OAuth 2.0 Authorization Server Metadata (RFC 8414)
+
+**Endpoint:** `GET /.well-known/oauth-authorization-server`
+
+Provides clients with OAuth server configuration for automatic discovery:
+
+```bash
+curl http://localhost:8000/.well-known/oauth-authorization-server
+```
+
+Returns metadata including all supported endpoints, grant types, and authentication methods.
+
+### Token Revocation (RFC 7009)
+
+**Endpoint:** `POST /oauth/revoke`
+
+Allows clients to revoke access or refresh tokens:
+
+```bash
+# Using Basic auth
+curl -X POST http://localhost:8000/oauth/revoke \
+  -u "demo_client:demo_secret" \
+  -d "token=YOUR_TOKEN&token_type_hint=access_token"
+
+# Using form data
+curl -X POST http://localhost:8000/oauth/revoke \
+  -d "token=YOUR_TOKEN" \
+  -d "client_id=demo_client" \
+  -d "client_secret=demo_secret"
+```
+
+### Token Introspection (RFC 7662)
+
+**Endpoint:** `POST /oauth/introspect`
+
+Allows resource servers to validate tokens and get metadata:
+
+```bash
+curl -X POST http://localhost:8000/oauth/introspect \
+  -u "demo_client:demo_secret" \
+  -d "token=YOUR_TOKEN&token_type_hint=access_token"
+```
+
+Returns token status and metadata:
+```json
+{
+  "active": true,
+  "scope": "read write",
+  "client_id": "demo_client",
+  "username": "demo_user",
+  "exp": 1735432800
+}
+```
+
+### UserInfo Endpoint
+
+**Endpoint:** `GET /userinfo`
+
+Returns authenticated user's profile information:
+
+```bash
+curl http://localhost:8000/userinfo \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+Returns user profile based on token scopes:
+```json
+{
+  "sub": "demo_user",
+  "name": "demo_user",
+  "preferred_username": "demo_user",
+  "email": "demo_user@example.com",
+  "scope": "read write profile email"
+}
+```
+
 ## References
 
 - FastMCP OAuth Documentation: https://gofastmcp.com/servers/auth/full-oauth-server
 - OAuth 2.1 Specification: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1
 - PKCE Specification (RFC 7636): https://datatracker.ietf.org/doc/html/rfc7636
+- Dynamic Client Registration (RFC 7591): https://datatracker.ietf.org/doc/html/rfc7591
+- OAuth 2.0 Authorization Server Metadata (RFC 8414): https://datatracker.ietf.org/doc/html/rfc8414
+- OAuth 2.0 Token Revocation (RFC 7009): https://datatracker.ietf.org/doc/html/rfc7009
+- OAuth 2.0 Token Introspection (RFC 7662): https://datatracker.ietf.org/doc/html/rfc7662
+- OAuth 2.0 Protected Resource Metadata (RFC 9470): https://datatracker.ietf.org/doc/html/rfc9470
 - OAuth 2.0 Security Best Practices: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics
 
 ## License

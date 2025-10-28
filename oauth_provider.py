@@ -438,4 +438,22 @@ class InMemoryOAuthProvider(OAuthProvider):
             k: v for k, v in self.refresh_tokens.items()
             if v.expires_at > now
         }
+    
+    # Override metadata generation to include DCR support
+    @property
+    def metadata(self) -> dict:
+        """Override to provide custom OAuth metadata with DCR support."""
+        # Get base metadata if available
+        base_metadata = super().metadata if hasattr(super(), 'metadata') else {}
+
+        print('JASON GOING HERe')
+        
+        # Add/override with our custom metadata
+        return {
+            **base_metadata,
+            "registration_endpoint": f"{self.base_url}/register",
+            "registration_endpoint_auth_methods_supported": ["none"],
+            "client_registration_types_supported": ["automatic"],
+            "require_client_authentication": False,  # Allow open registration
+        }
 
