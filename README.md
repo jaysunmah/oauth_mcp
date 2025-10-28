@@ -39,6 +39,28 @@ This will demonstrate the complete OAuth 2.1 flow including:
 - Access token usage
 - Token refresh
 
+### Test Dynamic Client Registration
+
+Register new OAuth clients dynamically at runtime:
+
+```bash
+python test_dcr.py
+```
+
+Or use curl:
+
+```bash
+curl -X POST http://localhost:8000/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "redirect_uris": ["http://localhost:5000/callback"],
+    "client_name": "My App",
+    "scope": "read write"
+  }'
+```
+
+The server will respond with a `client_id` and `client_secret` that you can use immediately.
+
 ## Demo Credentials
 
 **OAuth Client:**
@@ -56,6 +78,7 @@ oauth_mcp/
 ├── main.py                      # FastMCP server with OAuth
 ├── oauth_provider.py            # OAuth 2.1 server implementation
 ├── oauth_client_example.py      # Complete OAuth flow demo
+├── test_dcr.py                  # Dynamic Client Registration test
 ├── client.py                    # Original simple client (no auth)
 ├── OAUTH_README.md             # Complete documentation
 └── README.md                   # This file
@@ -70,6 +93,7 @@ oauth_mcp/
 ✅ Token revocation  
 ✅ Scope validation  
 ✅ State parameter for CSRF protection  
+✅ **Dynamic Client Registration (DCR) - RFC 7591**  
 
 ## Documentation
 
@@ -85,7 +109,8 @@ See [OAUTH_README.md](./OAUTH_README.md) for:
 
 - [FastMCP OAuth Documentation](https://gofastmcp.com/servers/auth/full-oauth-server)
 - [OAuth 2.1 Specification](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1)
-- [PKCE Specification](https://datatracker.ietf.org/doc/html/rfc7636)
+- [PKCE Specification (RFC 7636)](https://datatracker.ietf.org/doc/html/rfc7636)
+- [Dynamic Client Registration (RFC 7591)](https://datatracker.ietf.org/doc/html/rfc7591)
 
 ## License
 

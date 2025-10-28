@@ -15,7 +15,7 @@ Production systems require:
 import secrets
 import time
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 from fastmcp.server.auth import OAuthProvider
 from mcp.server.auth.provider import (
     AuthorizationParams,
@@ -27,6 +27,55 @@ from mcp.shared.auth import (
     OAuthClientInformationFull,
     OAuthToken,
 )
+from pydantic import BaseModel, Field
+from typing import List
+
+
+class ClientRegistrationRequest(BaseModel):
+    """
+    OAuth 2.0 Dynamic Client Registration request (RFC 7591).
+    """
+    redirect_uris: List[str] = Field(..., description="Array of redirection URI strings")
+    token_endpoint_auth_method: Optional[str] = Field(
+        default="client_secret_basic",
+        description="Authentication method for token endpoint"
+    )
+    grant_types: Optional[List[str]] = Field(
+        default=["authorization_code"],
+        description="Array of OAuth 2.0 grant types"
+    )
+    response_types: Optional[List[str]] = Field(
+        default=["code"],
+        description="Array of OAuth 2.0 response types"
+    )
+    client_name: Optional[str] = Field(default=None, description="Human-readable client name")
+    client_uri: Optional[str] = Field(default=None, description="URL of client's home page")
+    logo_uri: Optional[str] = Field(default=None, description="URL of client's logo")
+    scope: Optional[str] = Field(default=None, description="Space-separated scope values")
+    contacts: Optional[List[str]] = Field(default=None, description="Contact email addresses")
+    tos_uri: Optional[str] = Field(default=None, description="URL of terms of service")
+    policy_uri: Optional[str] = Field(default=None, description="URL of privacy policy")
+
+
+class ClientRegistrationResponse(BaseModel):
+    """
+    OAuth 2.0 Dynamic Client Registration response (RFC 7591).
+    """
+    client_id: str
+    client_secret: Optional[str] = None
+    client_id_issued_at: int
+    client_secret_expires_at: int = 0  # 0 means never expires
+    redirect_uris: List[str]
+    token_endpoint_auth_method: str
+    grant_types: List[str]
+    response_types: List[str]
+    client_name: Optional[str] = None
+    client_uri: Optional[str] = None
+    logo_uri: Optional[str] = None
+    scope: Optional[str] = None
+    contacts: Optional[List[str]] = None
+    tos_uri: Optional[str] = None
+    policy_uri: Optional[str] = None
 
 
 class InMemoryOAuthProvider(OAuthProvider):
@@ -71,6 +120,67 @@ class InMemoryOAuthProvider(OAuthProvider):
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         """Store new client registration."""
         self.clients[client_info.client_id] = client_info
+    
+    async def dynamic_register_client(
+        self,
+        registration: ClientRegistrationRequest,
+    ) -> ClientRegistrationResponse:
+        """
+        Dynamic Client Registration (RFC 7591).
+        
+        Allows clients to register themselves at runtime via API.
+        Generates client_id and client_secret automatically.
+        """
+        # Validate redirect URIs (must not be empty)
+        if not registration.redirect_uris:
+            raise ValueError("redirect_uris is required and must not be empty")
+        
+        # Validate grant types and response types consistency
+        grant_types = registration.grant_types or ["authorization_code"]
+        response_types = registration.response_types or ["code"]
+        
+        # Ensure authorization_code grant has refresh_token if needed
+        if "authorization_code" in grant_types and "refresh_token" not in grant_types:
+            grant_types.append("refresh_token")
+        
+        # Generate client credentials
+        client_id = f"dcr_{secrets.token_urlsafe(16)}"
+        client_secret = secrets.token_urlsafe(32)
+        
+        # Create client info
+        client_info = OAuthClientInformationFull(
+            client_id=client_id,
+            client_secret=client_secret,
+            redirect_uris=registration.redirect_uris,
+            grant_types=grant_types,
+            response_types=response_types,
+            scope=registration.scope or "read",
+            token_endpoint_auth_method=registration.token_endpoint_auth_method or "client_secret_basic",
+        )
+        
+        # Store the client
+        await self.register_client(client_info)
+        
+        # Create response following RFC 7591
+        issued_at = int(time.time())
+        
+        return ClientRegistrationResponse(
+            client_id=client_id,
+            client_secret=client_secret,
+            client_id_issued_at=issued_at,
+            client_secret_expires_at=0,  # Never expires
+            redirect_uris=registration.redirect_uris,
+            token_endpoint_auth_method=client_info.token_endpoint_auth_method,
+            grant_types=grant_types,
+            response_types=response_types,
+            client_name=registration.client_name,
+            client_uri=registration.client_uri,
+            logo_uri=registration.logo_uri,
+            scope=registration.scope,
+            contacts=registration.contacts,
+            tos_uri=registration.tos_uri,
+            policy_uri=registration.policy_uri,
+        )
     
     # ===== Authorization Flow =====
     
