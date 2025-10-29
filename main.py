@@ -7,7 +7,9 @@ from datetime import timedelta, datetime
 
 # Create MCP server with OAuth authentication
 oauth_provider = InMemoryOAuthProvider()
-mcp = FastMCP("My MCP Server", auth=oauth_provider)
+# mcp = FastMCP("My MCP Server", auth=oauth_provider)
+mcp = FastMCP("My MCP Server")
+
 
 @mcp.tool
 def greet(name: str) -> str:
@@ -92,6 +94,8 @@ async def oauth_metadata(request: Request):
     This endpoint provides OAuth server configuration to clients
     for automatic discovery.
     """
+    print(f"🔍 OAuth Protected Resource Metadata endpoint hit: {request.method} {request.url}")
+    
     # Handle CORS preflight
     if request.method == "OPTIONS":
         return Response(
@@ -141,6 +145,8 @@ async def oauth_metadata(request: Request):
 @mcp.custom_route("/.well-known/openid-configuration", methods=["GET", "OPTIONS"])
 async def openid_configuration(request: Request):
     """Override FastMCP's default OAuth metadata with DCR support."""
+    print(f"🔍 OpenID Configuration endpoint hit: {request.method} {request.url}")
+    
     if request.method == "OPTIONS":
         return Response(
             status_code=200,
@@ -189,6 +195,9 @@ async def oauth_authorization_server_metadata(request: Request):
     to clients for automatic discovery. This is different from the
     protected resource metadata endpoint.
     """
+    print(f"🔍 OAuth Authorization Server Metadata endpoint hit: {request.method} {request.url}")
+    print(f"🔍 THIS IS OUR CUSTOM ENDPOINT - NOT FASTMCP's!")
+    
     # Handle CORS preflight
     if request.method == "OPTIONS":
         return Response(
@@ -361,6 +370,11 @@ async def revoke_token_endpoint(request: Request):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Revocation failed: {str(e)}")
+
+@mcp.custom_route("/test", methods=["GET", "OPTIONS"])
+async def test_endpoint(request: Request):
+    print(f"🔍 Test endpoint hit: {request.method} {request.url}")
+    return JSONResponse(content={"message": "Hello, world!"})
 
 # Add Token Introspection endpoint
 @mcp.custom_route("/oauth/introspect", methods=["POST", "OPTIONS"])
@@ -557,6 +571,77 @@ if __name__ == "__main__":
     
     # Register demo client before starting server
     asyncio.run(setup_demo_client())
+    
+    # Try to override FastMCP's oauth-authorization-server endpoint
+    # This needs to happen right before running the server
+    from fastapi import FastAPI
+    from fastapi.routing import APIRoute
+    
+    # Check if we can access the FastAPI app
+    app = None
+    if hasattr(mcp, 'app') and isinstance(getattr(mcp, 'app'), FastAPI):
+        app = mcp.app
+    elif hasattr(mcp, '_app') and isinstance(getattr(mcp, '_app'), FastAPI):
+        app = mcp._app
+    
+    if app:
+        # Remove existing route if it exists
+        routes_to_remove = []
+        for route in app.routes:
+            if isinstance(route, APIRoute) and route.path == "/.well-known/oauth-authorization-server":
+                routes_to_remove.append(route)
+        
+        for route in routes_to_remove:
+            app.routes.remove(route)
+        
+        # Add our custom route directly to the FastAPI app
+        @app.get("/.well-known/oauth-authorization-server")
+        @app.options("/.well-known/oauth-authorization-server")
+        async def custom_oauth_authorization_server_metadata(request: Request):
+            """Custom OAuth Authorization Server Metadata with registration endpoint."""
+            print(f"🎯 CUSTOM OAuth Authorization Server Metadata endpoint hit!")
+            
+            if request.method == "OPTIONS":
+                return Response(
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                    }
+                )
+            
+            scheme = request.url.scheme
+            host = request.headers.get("host", request.url.netloc)
+            base_url = f"{scheme}://{host}"
+            
+            metadata = {
+                "issuer": f"{base_url}/",
+                "authorization_endpoint": f"{base_url}/authorize",
+                "token_endpoint": f"{base_url}/token",
+                "registration_endpoint": f"{base_url}/register",  # THIS IS THE KEY!
+                "scopes_supported": ["read", "write", "admin"],
+                "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code", "refresh_token"],
+                "token_endpoint_auth_methods_supported": ["client_secret_post"],
+                "code_challenge_methods_supported": ["S256"],
+                "service_documentation": f"{base_url}/docs",
+                # DCR support fields
+                "registration_endpoint_auth_methods_supported": ["none"],
+                "client_registration_types_supported": ["automatic"]
+            }
+            
+            return JSONResponse(
+                content=metadata,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=3600",
+                }
+            )
+        
+        print("✅ Successfully overrode OAuth authorization server metadata endpoint")
+    else:
+        print("⚠️  Could not access FastAPI app to override routes")
     
     # Important: Override FastMCP's default OAuth routes
     # FastMCP creates these routes when auth is provided, so we override them

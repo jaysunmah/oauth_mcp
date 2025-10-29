@@ -156,6 +156,7 @@ class InMemoryOAuthProvider(OAuthProvider):
             response_types=response_types,
             scope=registration.scope or "read",
             token_endpoint_auth_method=registration.token_endpoint_auth_method or "client_secret_basic",
+            registration_endpoint=self.base_url + "/register",
         )
         
         # Store the client
