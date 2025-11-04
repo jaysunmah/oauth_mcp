@@ -443,11 +443,19 @@ class InMemoryOAuthProvider(OAuthProvider):
     # Override metadata generation to include DCR support
     @property
     def metadata(self) -> dict:
-        """Override to provide custom OAuth metadata with DCR support."""
+        """
+        Override to provide custom OAuth metadata with DCR support.
+        
+        Returns OAuth 2.0 metadata including dynamic client registration
+        endpoints and capabilities as per RFC 7591 and RFC 8414.
+        """
         # Get base metadata if available
-        base_metadata = super().metadata if hasattr(super(), 'metadata') else {}
-
-        print('JASON GOING HERe')
+        base_metadata = {}
+        if hasattr(super(), 'metadata'):
+            try:
+                base_metadata = super().metadata
+            except (AttributeError, NotImplementedError):
+                pass
         
         # Add/override with our custom metadata
         return {
