@@ -446,8 +446,6 @@ class InMemoryOAuthProvider(OAuthProvider):
         """Override to provide custom OAuth metadata with DCR support."""
         # Get base metadata if available
         base_metadata = super().metadata if hasattr(super(), 'metadata') else {}
-
-        print('JASON GOING HERe')
         
         # Add/override with our custom metadata
         return {
