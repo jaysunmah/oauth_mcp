@@ -15,7 +15,7 @@ Production systems require:
 import secrets
 import time
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Optional, List
 from fastmcp.server.auth import OAuthProvider
 from mcp.server.auth.provider import (
     AuthorizationParams,
@@ -28,7 +28,6 @@ from mcp.shared.auth import (
     OAuthToken,
 )
 from pydantic import BaseModel, Field
-from typing import List
 
 
 class ClientRegistrationRequest(BaseModel):
@@ -444,10 +443,11 @@ class InMemoryOAuthProvider(OAuthProvider):
     @property
     def metadata(self) -> dict:
         """Override to provide custom OAuth metadata with DCR support."""
-        # Get base metadata if available
-        base_metadata = super().metadata if hasattr(super(), 'metadata') else {}
-
-        print('JASON GOING HERe')
+        # Get base metadata if available from parent class
+        try:
+            base_metadata = super().metadata
+        except AttributeError:
+            base_metadata = {}
         
         # Add/override with our custom metadata
         return {
