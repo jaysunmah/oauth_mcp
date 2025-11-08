@@ -203,8 +203,10 @@ class InMemoryOAuthProvider(OAuthProvider):
         This demo implementation auto-approves for the demo user.
         """
         # Validate redirect URI
-        if params.redirect_uri not in client.redirect_uris:
-            raise ValueError(f"Invalid redirect_uri: {params.redirect_uri}")
+        redirect_uri_str = str(params.redirect_uri)
+        client_redirect_uris = [str(uri) for uri in client.redirect_uris]
+        if redirect_uri_str not in client_redirect_uris:
+            raise ValueError(f"Invalid redirect_uri: {redirect_uri_str}")
         
         # In production: authenticate user and get consent
         # For demo: auto-approve with demo user
@@ -214,15 +216,15 @@ class InMemoryOAuthProvider(OAuthProvider):
         code = secrets.token_urlsafe(32)
         
         # Store authorization code with PKCE challenge
+        expires_timestamp = (datetime.now() + timedelta(minutes=10)).timestamp()
         auth_code = AuthorizationCode(
             code=code,
             client_id=client.client_id,
             redirect_uri=params.redirect_uri,
-            scope=params.scope or [],
+            scopes=params.scopes or [],
             code_challenge=params.code_challenge,
-            code_challenge_method=params.code_challenge_method,
-            expires_at=datetime.now() + timedelta(minutes=10),
-            user_id=user_id,  # Associate with user
+            expires_at=expires_timestamp,
+            redirect_uri_provided_explicitly=params.redirect_uri_provided_explicitly,
         )
         
         self.authorization_codes[code] = auth_code
@@ -250,7 +252,7 @@ class InMemoryOAuthProvider(OAuthProvider):
             return None
         
         # Check expiration
-        if datetime.now() > auth_code.expires_at:
+        if datetime.now().timestamp() > auth_code.expires_at:
             # Clean up expired code
             del self.authorization_codes[authorization_code]
             return None
@@ -270,21 +272,21 @@ class InMemoryOAuthProvider(OAuthProvider):
         refresh_token_str = secrets.token_urlsafe(32)
         
         # Create access token
+        access_expires = int((datetime.now() + timedelta(hours=1)).timestamp())
         access_token = AccessToken(
             token=access_token_str,
             client_id=client.client_id,
-            scope=authorization_code.scope,
-            expires_at=datetime.now() + timedelta(hours=1),
-            user_id=authorization_code.user_id,
+            scopes=authorization_code.scopes,
+            expires_at=access_expires,
         )
         
         # Create refresh token
+        refresh_expires = int((datetime.now() + timedelta(days=30)).timestamp())
         refresh_token = RefreshToken(
             token=refresh_token_str,
             client_id=client.client_id,
-            scope=authorization_code.scope,
-            expires_at=datetime.now() + timedelta(days=30),
-            user_id=authorization_code.user_id,
+            scopes=authorization_code.scopes,
+            expires_at=refresh_expires,
         )
         
         # Store tokens
@@ -300,7 +302,7 @@ class InMemoryOAuthProvider(OAuthProvider):
             token_type="Bearer",
             expires_in=3600,  # 1 hour
             refresh_token=refresh_token_str,
-            scope=authorization_code.scope,
+            scope=" ".join(authorization_code.scopes),
         )
     
     async def load_refresh_token(
@@ -323,7 +325,7 @@ class InMemoryOAuthProvider(OAuthProvider):
             return None
         
         # Check expiration
-        if datetime.now() > token.expires_at:
+        if token.expires_at and datetime.now().timestamp() > token.expires_at:
             del self.refresh_tokens[refresh_token]
             return None
         
@@ -337,18 +339,18 @@ class InMemoryOAuthProvider(OAuthProvider):
     ) -> OAuthToken:
         """Exchange refresh token for new access token."""
         # Validate requested scopes are subset of original
-        if not set(scopes).issubset(set(refresh_token.scope)):
+        if not set(scopes).issubset(set(refresh_token.scopes)):
             raise ValueError("Requested scopes exceed original grant")
         
         # Generate new access token
         access_token_str = secrets.token_urlsafe(32)
         
+        access_expires = int((datetime.now() + timedelta(hours=1)).timestamp())
         access_token = AccessToken(
             token=access_token_str,
             client_id=client.client_id,
-            scope=scopes,
-            expires_at=datetime.now() + timedelta(hours=1),
-            user_id=refresh_token.user_id,
+            scopes=scopes,
+            expires_at=access_expires,
         )
         
         # Store new access token
@@ -356,12 +358,12 @@ class InMemoryOAuthProvider(OAuthProvider):
         
         # Optionally rotate refresh token (recommended)
         new_refresh_token_str = secrets.token_urlsafe(32)
+        refresh_expires = int((datetime.now() + timedelta(days=30)).timestamp())
         new_refresh_token = RefreshToken(
             token=new_refresh_token_str,
             client_id=client.client_id,
-            scope=refresh_token.scope,
-            expires_at=datetime.now() + timedelta(days=30),
-            user_id=refresh_token.user_id,
+            scopes=refresh_token.scopes,
+            expires_at=refresh_expires,
         )
         
         # Store new refresh token and revoke old one
@@ -373,7 +375,7 @@ class InMemoryOAuthProvider(OAuthProvider):
             token_type="Bearer",
             expires_in=3600,
             refresh_token=new_refresh_token_str,
-            scope=scopes,
+            scope=" ".join(scopes),
         )
     
     async def load_access_token(self, token: str) -> Optional[AccessToken]:
@@ -388,7 +390,7 @@ class InMemoryOAuthProvider(OAuthProvider):
             return None
         
         # Check expiration
-        if datetime.now() > access_token.expires_at:
+        if access_token.expires_at and datetime.now().timestamp() > access_token.expires_at:
             del self.access_tokens[token]
             return None
         
@@ -420,7 +422,7 @@ class InMemoryOAuthProvider(OAuthProvider):
     
     def cleanup_expired_tokens(self):
         """Remove expired tokens from storage (call periodically)."""
-        now = datetime.now()
+        now = datetime.now().timestamp()
         
         # Clean authorization codes
         self.authorization_codes = {
@@ -431,13 +433,13 @@ class InMemoryOAuthProvider(OAuthProvider):
         # Clean access tokens
         self.access_tokens = {
             k: v for k, v in self.access_tokens.items()
-            if v.expires_at > now
+            if v.expires_at and v.expires_at > now
         }
         
         # Clean refresh tokens
         self.refresh_tokens = {
             k: v for k, v in self.refresh_tokens.items()
-            if v.expires_at > now
+            if v.expires_at and v.expires_at > now
         }
     
     # Override metadata generation to include DCR support

@@ -7,11 +7,13 @@ running the full server.
 
 import asyncio
 from datetime import datetime, timedelta
+import pytest
 from oauth_provider import InMemoryOAuthProvider
 from mcp.shared.auth import OAuthClientInformationFull
 from mcp.server.auth.provider import AuthorizationParams
 
 
+@pytest.mark.asyncio
 async def test_oauth_provider():
     """Test the OAuth provider implementation."""
     
@@ -45,13 +47,11 @@ async def test_oauth_provider():
     # Test 3: Authorization
     print("\n✓ Test 3: Authorization")
     auth_params = AuthorizationParams(
-        response_type="code",
-        client_id="test_client",
-        redirect_uri="http://localhost:3000/callback",
-        scope=["read", "write"],
+        scopes=["read", "write"],
         state="random_state_123",
         code_challenge="test_challenge",
-        code_challenge_method="S256",
+        redirect_uri="http://localhost:3000/callback",
+        redirect_uri_provided_explicitly=True,
     )
     redirect_url = await provider.authorize(client, auth_params)
     print(f"  Redirect URL: {redirect_url[:80]}...")
@@ -81,8 +81,8 @@ async def test_oauth_provider():
     access_token = await provider.verify_token(token.access_token)
     assert access_token is not None
     assert access_token.token == token.access_token
-    print(f"  Token verified for user: {access_token.user_id}")
-    print(f"  Token scopes: {', '.join(access_token.scope)}")
+    print(f"  Token verified for client: {access_token.client_id}")
+    print(f"  Token scopes: {', '.join(access_token.scopes)}")
     
     # Test 7: Load Refresh Token
     print("\n✓ Test 7: Load Refresh Token")
@@ -127,15 +127,16 @@ async def test_oauth_provider():
     print("\n✓ Test 12: Expired Authorization Code")
     # Create an expired code manually
     from mcp.server.auth.provider import AuthorizationCode
+    from pydantic import AnyUrl
+    expired_timestamp = (datetime.now() - timedelta(minutes=1)).timestamp()  # Expired
     expired_code = AuthorizationCode(
         code="expired_code_123",
         client_id="test_client",
-        redirect_uri="http://localhost:3000/callback",
-        scope=["read"],
+        redirect_uri=AnyUrl("http://localhost:3000/callback"),
+        scopes=["read"],
         code_challenge="challenge",
-        code_challenge_method="S256",
-        expires_at=datetime.now() - timedelta(minutes=1),  # Expired
-        user_id="demo_user",
+        expires_at=expired_timestamp,
+        redirect_uri_provided_explicitly=True,
     )
     provider.authorization_codes["expired_code_123"] = expired_code
     
